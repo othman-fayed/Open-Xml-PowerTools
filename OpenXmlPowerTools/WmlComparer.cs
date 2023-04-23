@@ -1340,6 +1340,8 @@ namespace OpenXmlPowerTools
         {
             Package packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage.Package;
             Package packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage.Package;
+            //var packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage.GetAllParts;
+            //var packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage;
             PackagePart partInDeletedDocument = packageOfDeletedContent.GetPart(wDocDelta.MainDocumentPart.Uri);
             PackagePart partInNewDocument = packageOfNewContent.GetPart(consolidatedWDoc.MainDocumentPart.Uri);
             consolidationInfo.RevisionElement = MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, consolidationInfo.RevisionElement);

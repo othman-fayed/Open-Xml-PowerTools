@@ -56,7 +56,7 @@ namespace OpenXmlPowerTools
         public static string MakeValidXml(string p)
         {
             return p.Any(c => c < 0x20)
-                ? p.Select(c => c < 0x20 ? string.Format("_{0:X}_", (int) c) : c.ToString()).StringConcatenate()
+                ? p.Select(c => c < 0x20 ? string.Format("_{0:X}_", (int)c) : c.ToString()).StringConcatenate()
                 : p;
         }
 
@@ -820,7 +820,7 @@ namespace OpenXmlPowerTools
             if (a == null)
                 return null;
 
-            string s = ((string) a).ToLower();
+            string s = ((string)a).ToLower();
             switch (s)
             {
                 case "1":
@@ -836,7 +836,7 @@ namespace OpenXmlPowerTools
                 case "off":
                     return false;
                 default:
-                    return (bool) a;
+                    return (bool)a;
             }
         }
 
@@ -1149,23 +1149,23 @@ namespace OpenXmlPowerTools
 
     public class GroupOfAdjacent<TSource, TKey> : IGrouping<TKey, TSource>
     {
-        public GroupOfAdjacent(List<TSource> source, TKey key)
+        public GroupOfAdjacent(ICollection<TSource> source, TKey key)
         {
             GroupList = source;
             Key = key;
         }
 
         public TKey Key { get; set; }
-        private List<TSource> GroupList { get; set; }
+        private ICollection<TSource> GroupList { get; set; }
 
         IEnumerator IEnumerable.GetEnumerator()
         {
-            return ((IEnumerable<TSource>) this).GetEnumerator();
+            return ((IEnumerable<TSource>)this).GetEnumerator();
         }
 
         IEnumerator<TSource> IEnumerable<TSource>.GetEnumerator()
         {
-            return ((IEnumerable<TSource>) GroupList).GetEnumerator();
+            return ((IEnumerable<TSource>)GroupList).GetEnumerator();
         }
     }
 
@@ -1396,7 +1396,7 @@ namespace OpenXmlPowerTools
             Buckets = new Dictionary<string, BucketInfo>();
         }
     }
-    
+
     public class XEntity : XText
     {
         public override void WriteTo(XmlWriter writer)

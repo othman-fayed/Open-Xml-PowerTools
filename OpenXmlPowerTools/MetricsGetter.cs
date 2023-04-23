@@ -201,11 +201,27 @@ namespace OpenXmlPowerTools
             return xe;
         }
 
+        //private static XElement RetrieveContentTypeList(OpenXmlPackage oxPkg)
+        //{
+        //    var contentTypes = oxPkg
+        //        .Parts
+        //        .Select(p => p.OpenXmlPart.ContentType)
+        //        .Distinct()
+        //        .Where(p => p != "application/vnd.openxmlformats-package.relationships+xml")
+        //        .OrderBy(t => t)
+        //        ;
+        //    var xe = new XElement(H.ContentTypes,
+        //        contentTypes.Select(ct => new XElement(H.ContentType, new XAttribute(H.Val, ct))));
+        //    return xe;
+        //}
+
         private static XElement RetrieveNamespaceList(OpenXmlPackage oxPkg)
         {
             Package pkg = oxPkg.Package;
 
             var nonRelationshipParts = pkg.GetParts().Cast<ZipPackagePart>().Where(p => p.ContentType != "application/vnd.openxmlformats-package.relationships+xml");
+
+            //var nonRelationshipParts = oxPkg.Parts.Select(x => x.OpenXmlPart).Where(p => p.ContentType != "application/vnd.openxmlformats-package.relationships+xml");
             var xmlParts = nonRelationshipParts
                 .Where(p => p.ContentType.ToLower().EndsWith("xml"));
 
