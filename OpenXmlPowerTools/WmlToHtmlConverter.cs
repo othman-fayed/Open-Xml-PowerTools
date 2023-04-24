@@ -1239,6 +1239,8 @@ namespace OpenXmlPowerTools
             return pagedDivs;
         }
 
+
+
         private enum BorderType
         {
             Paragraph,
@@ -2842,7 +2844,7 @@ namespace OpenXmlPowerTools
             .ToList();
         }
 
-        private static IEnumerable<object> GroupAndVerticallySpaceNumberedParagraphs(
+        private static IEnumerable<object> GroupAndVerticallySpaceNumberedParagraphs1(
             WordprocessingDocument wordDoc, WmlToHtmlConverterSettings settings,
             IEnumerable<XElement> elements, decimal currentMarginLeft)
         {
@@ -2892,6 +2894,37 @@ namespace OpenXmlPowerTools
             }
 
             return newContent;
+        }
+
+        private static IEnumerable<object> GroupAndVerticallySpaceNumberedParagraphs(WordprocessingDocument wordDoc, WmlToHtmlConverterSettings settings,
+            IEnumerable<XElement> elements, decimal currentMarginLeft)
+        {
+            var grouped = elements
+                .GroupAdjacent(e =>
+                {
+                    var abstractNumId = (string)e.Attribute(PtOpenXml.pt + "AbstractNumId");
+                    if (abstractNumId != null)
+                        return "num:" + abstractNumId;
+                    var contextualSpacing = e.Elements(W.pPr).Elements(W.contextualSpacing).FirstOrDefault();
+                    if (contextualSpacing != null)
+                    {
+                        var styleName = (string)e.Elements(W.pPr).Elements(W.pStyle).Attributes(W.val).FirstOrDefault();
+                        if (styleName == null)
+                            return "";
+                        return "sty:" + styleName;
+                    }
+                    return "";
+                })
+                .ToList();
+            var newContent = grouped
+                .Select(g =>
+                {
+                    if (g.Key == "")
+                        return g.Select(e => ConvertToHtmlTransform(wordDoc, settings, e, false, currentMarginLeft));
+                    var last = g.Count() - 1;
+                    return g.Select((e, i) => ConvertToHtmlTransform(wordDoc, settings, e, i != last, currentMarginLeft));
+                });
+            return (IEnumerable<object>)newContent;
         }
 
         private class BorderMappingInfo
