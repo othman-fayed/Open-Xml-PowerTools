@@ -1202,7 +1202,36 @@ namespace OpenXmlPowerTools
                 divList.Add(div);
                 node = node.Next;
             }
+
             return divList;
+        }
+
+        private static IEnumerable<object> HandleFlaggedPageBreaks(IEnumerable<XElement> sectionsDivs)
+        {
+            var pagedDivs = new List<object>();
+
+            foreach (var div in sectionsDivs)
+            {
+                while (div.HasElements)
+                {
+                    var pageBreakBr = div
+                        .Elements(Xhtml.br)
+                        .FirstOrDefault(br => br.Attribute(PageBreakXAttribute.Name) != null);
+
+                    // var parent page
+                    if (pageBreakBr == null)
+                    {
+                        pagedDivs.Add(div);
+                        break;
+                    }
+                    else
+                    {
+                        pagedDivs.Add(div);
+                    }
+                }
+            }
+
+            return pagedDivs;
         }
 
         private enum BorderType
