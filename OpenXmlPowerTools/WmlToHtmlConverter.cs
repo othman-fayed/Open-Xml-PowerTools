@@ -200,15 +200,15 @@ namespace OpenXmlPowerTools
             XElement xhtml = (XElement)ConvertToHtmlTransform(wordDoc, htmlConverterSettings,
                 rootElement, false, 0m);
 
-            // find page breaks and wrap them
-            foreach (var brWithPageBreak in xhtml
-                .Element(Xhtml.body)
-                .Elements(Xhtml.br)
-                .Where(br => br.Attribute(PageBreakXAttribute.Name) != null))
-            {
-                // var parent page
+            //// find page breaks and wrap them
+            //foreach (var brWithPageBreak in xhtml
+            //    .Element(Xhtml.body)
+            //    .Elements(Xhtml.br)
+            //    .Where(br => br.Attribute(PageBreakXAttribute.Name) != null))
+            //{
+            //    // var parent page
 
-            }
+            //}
 
             ReifyStylesAndClasses(htmlConverterSettings, xhtml);
 
@@ -1152,70 +1152,55 @@ namespace OpenXmlPowerTools
             // note: when building a paging html converter, need to attend to new sections with page breaks here.
             // This code conflates adjacent sections if they have identical formatting, which is not an issue
             // for the non-paging transform.
-            var groupedIntoDivs = new LinkedList<IGrouping<string, XElement>>(
-                    element
-                    .Elements()
-                    .GroupAdjacent(e =>
-                    {
-                        var sectAnnotation = e.Annotation<SectionAnnotation>();
-                        return sectAnnotation != null ? sectAnnotation.SectionElement.ToString() : "";
-                    })
-                );
-            // TODO: Is Linked list better performant for insertions
-
-            // Oz
-            // expect to add additional pages based on :
-            // - section: type = nextPage/evenPage/oddPage
-            // - break: type = page
-            // - run: lastRenderedPageBreak
+            var groupedIntoDivs = element
+                .Elements()
+                .GroupAdjacent(e =>
+                {
+                    var sectAnnotation = e.Annotation<SectionAnnotation>();
+                    return sectAnnotation != null ? sectAnnotation.SectionElement.ToString() : "";
+                });
 
             // note: when creating a paging html converter, need to pay attention to w:rtlGutter element.
-            var divList = new List<XElement>();
-            var node = groupedIntoDivs.First;
-            while (node != null)
-            {
-                XElement div;
-                var g = node.Value;
-                var sectPr = g.First().Annotation<SectionAnnotation>();
-                XElement bidi = null;
-                if (sectPr != null)
+            var divList = groupedIntoDivs
+                .Select(g =>
                 {
-                    bidi = sectPr
-                        .SectionElement
-                        .Elements(W.bidi)
-                        .FirstOrDefault(b => b.Attribute(W.val) == null || b.Attribute(W.val).ToBoolean() == true);
-                }
+                    var sectPr = g.First().Annotation<SectionAnnotation>();
+                    XElement bidi = null;
+                    if (sectPr != null)
+                    {
+                        bidi = sectPr
+                            .SectionElement
+                            .Elements(W.bidi)
+                            .FirstOrDefault(b => b.Attribute(W.val) == null || b.Attribute(W.val).ToBoolean() == true);
+                    }
+                    if (sectPr == null || bidi == null)
+                    {
+                        var div = new XElement(Xhtml.div, CreateBorderDivs(wordDoc, settings, g));
+                        return div;
+                    }
+                    else
+                    {
+                        var div = new XElement(Xhtml.div,
+                            new XAttribute("dir", "rtl"),
+                            CreateBorderDivs(wordDoc, settings, g));
+                        return div;
+                    }
+                });
 
-                object borderDivs = CreateBorderDivs(wordDoc, settings, g);
-                if (sectPr == null || bidi == null)
-                {
-                    div = new XElement(Xhtml.div, borderDivs);
-                }
-                else
-                {
-                    div = new XElement(Xhtml.div,
-                        new XAttribute("dir", "rtl"),
-                        borderDivs);
-                }
-
-                //
-                divList.Add(div);
-                node = node.Next;
-            }
-
-            return divList;
+            return ProcessPageBreaks(divList);
         }
 
-        private static IEnumerable<object> HandleFlaggedPageBreaks(IEnumerable<XElement> sectionsDivs)
+        private static IEnumerable<object> ProcessPageBreaks(IEnumerable<XElement> sectionsDivs)
         {
             var pagedDivs = new List<object>();
 
-            foreach (var div in sectionsDivs)
+            foreach (var sectionDiv in sectionsDivs)
             {
+                var div = sectionDiv;
                 while (div.HasElements)
                 {
                     var pageBreakBr = div
-                        .Elements(Xhtml.br)
+                        .Descendants(Xhtml.br)
                         .FirstOrDefault(br => br.Attribute(PageBreakXAttribute.Name) != null);
 
                     // var parent page
@@ -1226,7 +1211,27 @@ namespace OpenXmlPowerTools
                     }
                     else
                     {
-                        pagedDivs.Add(div);
+
+                        // we are assuming that br comes under a paragraph always.
+                        // we also assume that paragraphs are not nested.
+                        // we must cater for other cases.
+
+                        var paragraphNode = pageBreakBr.Ancestors(Xhtml.p).FirstOrDefault();
+
+                        // first page
+                        var firstDiv = new XElement(div);
+                        firstDiv.RemoveNodes();
+                        firstDiv.Add(paragraphNode.ElementsBeforeSelf());
+                        pageBreakBr.Parent.Remove();
+                        firstDiv.Add(paragraphNode);
+
+                        // remaining
+                        var remainingDiv = new XElement(div);
+                        remainingDiv.RemoveNodes();
+                        remainingDiv.Add(paragraphNode.ElementsAfterSelf());
+
+                        pagedDivs.Add(firstDiv);
+                        div = remainingDiv;
                     }
                 }
             }
