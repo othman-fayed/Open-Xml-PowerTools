@@ -10,6 +10,8 @@ using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
+using FontFamily = System.Drawing.FontFamily;
 
 // 200e lrm - LTR
 // 200f rlm - RTL
@@ -136,6 +138,10 @@ namespace OpenXmlPowerTools
     public static class WmlToHtmlConverter
     {
         public static readonly XAttribute PageBreakXAttribute = new XAttribute("page-break", true);
+        /// <summary>
+        /// Annotates that a page is starting. Can be due to previous page-break or without
+        /// </summary>
+        public static readonly XAttribute LastRenderedPageBreakXAttribute = new XAttribute("last-rendered-page-break", true);
         public static XElement ConvertToHtml(WmlDocument doc, WmlToHtmlConverterSettings htmlConverterSettings)
         {
             using (OpenXmlMemoryStreamDocument streamDoc = new OpenXmlMemoryStreamDocument(doc))
@@ -156,7 +162,8 @@ namespace OpenXmlPowerTools
                 RemoveContentControls = true,
                 RemoveEndAndFootNotes = true,
                 RemoveFieldCodes = false,
-                RemoveLastRenderedPageBreak = true,
+                //RemoveLastRenderedPageBreak = true,
+                RemoveLastRenderedPageBreak = false,    // changed to false to preserve it for page breaks
                 RemovePermissions = true,
                 RemoveProof = true,
                 RemoveRsidInfo = true,
@@ -180,7 +187,8 @@ namespace OpenXmlPowerTools
                     new ListItemRetrieverSettings()
                     {
                         ListItemTextImplementations = ListItemRetrieverSettings.DefaultListItemTextImplementations,
-                    } :
+                    }
+                    :
                     new ListItemRetrieverSettings()
                     {
                         ListItemTextImplementations = htmlConverterSettings.ListItemImplementations,
@@ -207,7 +215,6 @@ namespace OpenXmlPowerTools
             //    .Where(br => br.Attribute(PageBreakXAttribute.Name) != null))
             //{
             //    // var parent page
-
             //}
 
             ReifyStylesAndClasses(htmlConverterSettings, xhtml);
@@ -495,11 +502,18 @@ namespace OpenXmlPowerTools
                 return ProcessTab(element);
             }
 
+            // Convert lastRenderedPageBreak to W.br 
+            if (element.Name == W.lastRenderedPageBreak)
+            {
+                return ProcessBreak(element);
+            }
+
             // Transform w:br to h:br.
             if (element.Name == W.br || element.Name == W.cr)
             {
                 return ProcessBreak(element);
             }
+
 
             // Transform w:noBreakHyphen to '-'
             if (element.Name == W.noBreakHyphen)
@@ -546,166 +560,6 @@ namespace OpenXmlPowerTools
             // Ignore element.
             return null;
         }
-
-
-        private static object ConvertToHtmlTransform1(WordprocessingDocument wordDoc,
-            WmlToHtmlConverterSettings settings, XNode node,
-            bool suppressTrailingWhiteSpace,
-            decimal currentMarginLeft)
-        {
-            var element = node as XElement;
-            if (element == null) return null;
-
-            // Transform the w:document element to the XHTML h:html element.
-            // The h:head element is laid out based on the W3C's recommended layout, i.e.,
-            // the charset (using the HTML5-compliant form), the title (which is always
-            // there but possibly empty), and other meta tags.
-            if (element.Name == W.document)
-            {
-                return new XElement(Xhtml.html,
-                    new XElement(Xhtml.head,
-                        new XElement(Xhtml.meta, new XAttribute("charset", "UTF-8")),
-                        settings.PageTitle != null
-                            ? new XElement(Xhtml.title, new XText(settings.PageTitle))
-                            : new XElement(Xhtml.title, new XText(string.Empty)),
-                        new XElement(Xhtml.meta,
-                            new XAttribute("name", "Generator"),
-                            new XAttribute("content", "PowerTools for Open XML"))),
-                    element.Elements()
-                        .Select(e => ConvertToHtmlTransform(wordDoc, settings, e, false, currentMarginLeft)));
-            }
-
-            // Transform the w:body element to the XHTML h:body element.
-            if (element.Name == W.body)
-            {
-                return new XElement(Xhtml.body, CreateSectionDivs(wordDoc, settings, element));
-            }
-
-            // Transform the w:p element to the XHTML h:h1-h6 or h:p element (if the previous paragraph does not
-            // have a style separator).
-            if (element.Name == W.p)
-            {
-                return ProcessParagraph(wordDoc, settings, element, suppressTrailingWhiteSpace, currentMarginLeft);
-            }
-
-            // Transform hyperlinks to the XHTML h:a element.
-            if (element.Name == W.hyperlink && element.Attribute(R.id) != null)
-            {
-                try
-                {
-                    var a = new XElement(Xhtml.a,
-                        new XAttribute("href",
-                            wordDoc.MainDocumentPart
-                                .HyperlinkRelationships
-                                .First(x => x.Id == (string)element.Attribute(R.id))
-                                .Uri
-                            ),
-                        element.Elements(W.r).Select(run => ConvertRun(wordDoc, settings, run))
-                        );
-                    if (!a.Nodes().Any())
-                        a.Add(new XText(""));
-                    return a;
-                }
-                catch (UriFormatException)
-                {
-                    return element.Elements().Select(e => ConvertToHtmlTransform(wordDoc, settings, e, false, currentMarginLeft));
-                }
-            }
-
-            // Transform hyperlinks to bookmarks to the XHTML h:a element.
-            if (element.Name == W.hyperlink && element.Attribute(W.anchor) != null)
-            {
-                return ProcessHyperlinkToBookmark(wordDoc, settings, element);
-            }
-
-            // Transform contents of runs.
-            if (element.Name == W.r)
-            {
-                return ConvertRun(wordDoc, settings, element);
-            }
-
-            // Transform w:bookmarkStart into anchor
-            if (element.Name == W.bookmarkStart)
-            {
-                return ProcessBookmarkStart(element);
-            }
-
-            // Transform every w:t element to a text node.
-            if (element.Name == W.t)
-            {
-                // We don't need to convert characters to entities in a UTF-8 document.
-                // Further, we don't need &nbsp; entities for significant whitespace
-                // because we are wrapping the text nodes in <span> elements within
-                // which all whitespace is significant.
-                return new XText(element.Value);
-            }
-
-            // Transform symbols to spans
-            if (element.Name == W.sym)
-            {
-                var cs = (string)element.Attribute(W._char);
-                var c = Convert.ToInt32(cs, 16);
-                return new XElement(Xhtml.span, new XEntity(string.Format("#{0}", c)));
-            }
-
-            // Transform tabs that have the pt:TabWidth attribute set
-            if (element.Name == W.tab)
-            {
-                return ProcessTab(element);
-            }
-
-            // Transform w:br to h:br.
-            if (element.Name == W.br || element.Name == W.cr)
-            {
-                return ProcessBreak(element);
-            }
-
-            // Transform w:noBreakHyphen to '-'
-            if (element.Name == W.noBreakHyphen)
-            {
-                return new XText("-");
-            }
-
-            // Transform w:tbl to h:tbl.
-            if (element.Name == W.tbl)
-            {
-                return ProcessTable(wordDoc, settings, element, currentMarginLeft);
-            }
-
-            // Transform w:tr to h:tr.
-            if (element.Name == W.tr)
-            {
-                return ProcessTableRow(wordDoc, settings, element, currentMarginLeft);
-            }
-
-            // Transform w:tc to h:td.
-            if (element.Name == W.tc)
-            {
-                return ProcessTableCell(wordDoc, settings, element);
-            }
-
-            // Transform images
-            if (element.Name == W.drawing || element.Name == W.pict || element.Name == W._object)
-            {
-                return ProcessImage(wordDoc, element, settings.ImageHandler);
-            }
-
-            // Transform content controls.
-            if (element.Name == W.sdt)
-            {
-                return ProcessContentControl(wordDoc, settings, element, currentMarginLeft);
-            }
-
-            // Transform smart tags and simple fields.
-            if (element.Name == W.smartTag || element.Name == W.fldSimple)
-            {
-                return CreateBorderDivs(wordDoc, settings, element.Elements());
-            }
-
-            // Ignore element.
-            return null;
-        }
-
 
         private static object ProcessHyperlinkToBookmark(WordprocessingDocument wordDoc, WmlToHtmlConverterSettings settings, XElement element)
         {
@@ -856,6 +710,10 @@ namespace OpenXmlPowerTools
             if (element.Attribute(W.type)?.Value == "page")
             {
                 br = new XElement(Xhtml.br, PageBreakXAttribute);
+            }
+            else if (element.Name == W.lastRenderedPageBreak)
+            {
+                br = new XElement(Xhtml.br, LastRenderedPageBreakXAttribute);
             }
             else
             {
@@ -1199,36 +1057,57 @@ namespace OpenXmlPowerTools
                 var div = sectionDiv;
                 while (div.HasElements)
                 {
-                    var pageBreakBr = div
+                    var br = div
                         .Descendants(Xhtml.br)
-                        .FirstOrDefault(br => br.Attribute(PageBreakXAttribute.Name) != null);
+                        .FirstOrDefault(b =>
+                            b.Attribute(PageBreakXAttribute.Name) != null ||
+                            b.Attribute(LastRenderedPageBreakXAttribute.Name) != null
+                            );
+
+                    //var pageBreakBr = firstChild
+                    //    .ElementsAfterSelf(Xhtml.br)
+                    //    .FirstOrDefault(br => br.Attribute(PageBreakXAttribute.Name) != null);
 
                     // var parent page
-                    if (pageBreakBr == null)
+                    if (br == null)
                     {
                         pagedDivs.Add(div);
                         break;
                     }
                     else
                     {
-
+                        // processing lastRenderedPageBreak. This is shown on new pages
                         // we are assuming that br comes under a paragraph always.
                         // we also assume that paragraphs are not nested.
                         // we must cater for other cases.
 
-                        var paragraphNode = pageBreakBr.Ancestors(Xhtml.p).FirstOrDefault();
+                        var (firstDiv, remainingDiv) = SplitIntoDivs(div, br);
 
-                        // first page
-                        var firstDiv = new XElement(div);
-                        firstDiv.RemoveNodes();
-                        firstDiv.Add(paragraphNode.ElementsBeforeSelf());
-                        pageBreakBr.Parent.Remove();
-                        firstDiv.Add(paragraphNode);
+                        if (br.Attribute(PageBreakXAttribute.Name) != null)
+                        {
+                            // remove LastRenderedPageBreak from subsequent
 
-                        // remaining
-                        var remainingDiv = new XElement(div);
-                        remainingDiv.RemoveNodes();
-                        remainingDiv.Add(paragraphNode.ElementsAfterSelf());
+                            // remove subsequent lastRenderedPageBreak. This is shown on new pages
+                            var subsequentElement = remainingDiv.Elements().FirstOrDefault();
+                            if (subsequentElement?.Name == Xhtml.p)
+                            {
+                                var lastRenderedPageBreak = subsequentElement
+                                    .Descendants(Xhtml.br)
+                                    .FirstOrDefault(b => b.Attribute(LastRenderedPageBreakXAttribute.Name) != null);
+
+                                // <p dir="ltr">
+                                //   <span>
+                                //     <br last-rendered-page-break="true" />&#x200e;</span>
+                                //   <span>page break.</span>
+                                // </p>
+
+                                if (lastRenderedPageBreak != null)
+                                {
+                                    lastRenderedPageBreak.Parent.Remove();
+                                }
+                            }
+
+                        }
 
                         pagedDivs.Add(firstDiv);
                         div = remainingDiv;
@@ -1238,6 +1117,116 @@ namespace OpenXmlPowerTools
 
             return pagedDivs;
         }
+
+        private static (XElement First, XElement Remaining) SplitIntoDivs(XElement div, XElement br)
+        {
+            var paragraphNode = br.Ancestors(Xhtml.p).FirstOrDefault();
+
+            // first page
+            var firstDiv = new XElement(div);
+            firstDiv.RemoveNodes();
+            firstDiv.Add(paragraphNode.ElementsBeforeSelf());
+
+            // get paragraph's container of the p.
+            // p might ne nested or in a table. loop till you find the parent div
+
+            var upperParagraph = new XElement(paragraphNode);
+            var spanContainingBr = upperParagraph.Descendants(Xhtml.br).First().Parent;
+            spanContainingBr.ElementsAfterSelf().Remove();
+            spanContainingBr.Remove();
+
+            var lowerParagraph = new XElement(paragraphNode);
+            spanContainingBr = lowerParagraph.Descendants(Xhtml.br).First().Parent;
+            spanContainingBr.ElementsBeforeSelf().Remove();
+            spanContainingBr.Remove();
+
+            /* 
+<div xmlns="http://www.w3.org/1999/xhtml">
+  <p dir="ltr">
+    <span xml:space="preserve">This is sentence is separated by a </span>
+  </p>
+  <p dir="ltr">
+    <span>
+      <br page-break="true" />&#x200e;</span>
+    <span xml:space="preserve"> </span>
+  </p>
+  <p dir="ltr">
+    <span>
+      <br last-rendered-page-break="true" />&#x200e;</span>
+    <span>page break.</span>
+  </p>
+</div>
+             */
+            var levels = 1;
+            var parentToDuplicate = paragraphNode;
+            while (parentToDuplicate.Parent != div)
+            {
+                // looping to get the top-most parent that isn't the div
+                parentToDuplicate = parentToDuplicate.Parent;
+                levels++;
+            }
+            if (parentToDuplicate == null)
+            {
+                throw new Exception("Parent was not found");
+            }
+
+            if (levels == 1)
+            {
+                parentToDuplicate.Remove();
+            }
+            else
+            {
+                // we have a nested situation
+                if (parentToDuplicate.Name == Xhtml.table)
+                {
+
+                }
+                else if (parentToDuplicate.Name == Xhtml.p)
+                {
+
+                }
+                else
+                {
+                    // What else could be ?
+                }
+            }
+
+            var paragraphsAdded = 0;
+            if (upperParagraph.Elements().Any())
+            {
+                firstDiv.Add(upperParagraph);
+                paragraphsAdded++;
+            }
+
+            // remaining
+            var remainingDiv = new XElement(div);
+            remainingDiv.RemoveNodes();
+            if (lowerParagraph.Elements().Any())
+            {
+                remainingDiv.Add(lowerParagraph);
+                paragraphsAdded++;
+            }
+
+            if (paragraphsAdded == 2)
+            {
+                // update id so it stays unique
+                var idAttribute = upperParagraph.Attribute(XhtmlNoNamespace.id);
+                if (idAttribute != null)
+                {
+                    idAttribute.Value = idAttribute.Value + "-up";
+                }
+                idAttribute = lowerParagraph.Attribute(XhtmlNoNamespace.id);
+                if (idAttribute != null)
+                {
+                    idAttribute.Value = idAttribute.Value + "-low";
+                }
+            }
+
+            remainingDiv.Add(paragraphNode.ElementsAfterSelf());
+
+            return (firstDiv, remainingDiv);
+        }
+
 
 
 
@@ -2788,6 +2777,15 @@ namespace OpenXmlPowerTools
             return currentSection;
         }
 
+
+
+        /// <summary>
+        /// Assumed: Wrap elements with border
+        /// </summary>
+        /// <param name="wordDoc"></param>
+        /// <param name="settings"></param>
+        /// <param name="elements"></param>
+        /// <returns></returns>
         private static object CreateBorderDivs(WordprocessingDocument wordDoc, WmlToHtmlConverterSettings settings, IEnumerable<XElement> elements)
         {
             IEnumerable<IGrouping<string, XElement>> groups = elements.GroupAdjacent(e =>
@@ -3558,3 +3556,5 @@ namespace OpenXmlPowerTools
         }
     }
 }
+
+
