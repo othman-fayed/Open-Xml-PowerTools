@@ -50,28 +50,32 @@ namespace OpenXmlPowerTools
         public static void AssembleFormatting(WordprocessingDocument wDoc, FormattingAssemblerSettings settings)
         {
             FormattingAssemblerInfo fai = new FormattingAssemblerInfo();
-            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
-            XElement defaultParagraphStyle = sXDoc
-                .Root
-                .Elements(W.style)
-                .FirstOrDefault(st => st.Attribute(W._default).ToBoolean() == true &&
-                    (string)st.Attribute(W.type) == "paragraph");
-            if (defaultParagraphStyle != null)
-                fai.DefaultParagraphStyleName = (string)defaultParagraphStyle.Attribute(W.styleId);
-            XElement defaultCharacterStyle = sXDoc
-                .Root
-                .Elements(W.style)
-                .FirstOrDefault(st => st.Attribute(W._default).ToBoolean() == true &&
-                    (string)st.Attribute(W.type) == "character");
-            if (defaultCharacterStyle != null)
-                fai.DefaultCharacterStyleName = (string)defaultCharacterStyle.Attribute(W.styleId);
-            XElement defaultTableStyle = sXDoc
-                .Root
-                .Elements(W.style)
-                .FirstOrDefault(st => st.Attribute(W._default).ToBoolean() == true &&
-                    (string)st.Attribute(W.type) == "table");
-            if (defaultTableStyle != null)
-                fai.DefaultTableStyleName = (string)defaultTableStyle.Attribute(W.styleId);
+            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart?.GetXDocument();
+            if (sXDoc != null)
+            {
+                XElement defaultParagraphStyle = sXDoc
+                    .Root
+                    .Elements(W.style)
+                    .FirstOrDefault(st => st.Attribute(W._default).ToBoolean() == true &&
+                        (string)st.Attribute(W.type) == "paragraph");
+                if (defaultParagraphStyle != null)
+                    fai.DefaultParagraphStyleName = (string)defaultParagraphStyle.Attribute(W.styleId);
+                XElement defaultCharacterStyle = sXDoc
+                    .Root
+                    .Elements(W.style)
+                    .FirstOrDefault(st => st.Attribute(W._default).ToBoolean() == true &&
+                        (string)st.Attribute(W.type) == "character");
+                if (defaultCharacterStyle != null)
+                    fai.DefaultCharacterStyleName = (string)defaultCharacterStyle.Attribute(W.styleId);
+                XElement defaultTableStyle = sXDoc
+                    .Root
+                    .Elements(W.style)
+                    .FirstOrDefault(st => st.Attribute(W._default).ToBoolean() == true &&
+                        (string)st.Attribute(W.type) == "table");
+                if (defaultTableStyle != null)
+                    fai.DefaultTableStyleName = (string)defaultTableStyle.Attribute(W.styleId);
+            }
+
             ListItemRetrieverSettings listItemRetrieverSettings = new ListItemRetrieverSettings();
             AssembleListItemInformation(wDoc, settings.ListItemRetrieverSettings);
             foreach (var part in wDoc.ContentParts())
@@ -859,53 +863,59 @@ namespace OpenXmlPowerTools
             XElement globalDefaultParaPropsAsDefined = null;
             XElement globalDefaultRunProps = null;
             XElement globalDefaultRunPropsAsDefined = null;
-            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
-            var defaultParaStyleName = (string)sXDoc
-                .Root
-                .Elements(W.style)
-                .Where(st => (string)st.Attribute(W.type) == "paragraph" && st.Attribute(W._default).ToBoolean() == true)
-                .Attributes(W.styleId)
-                .FirstOrDefault();
-            var defaultCharStyleName = (string)sXDoc
-                .Root
-                .Elements(W.style)
-                .Where(st => (string)st.Attribute(W.type) == "character" && st.Attribute(W._default).ToBoolean() == true)
-                .Attributes(W.styleId)
-                .FirstOrDefault();
-            XElement docDefaults = sXDoc.Root.Element(W.docDefaults);
-            if (docDefaults != null)
+            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart?.GetXDocument();
+            string defaultParaStyleName = null;
+            string defaultCharStyleName = null;
+            if (sXDoc != null)
             {
-                globalDefaultParaPropsAsDefined = docDefaults.Elements(W.pPrDefault).Elements(W.pPr)
+                defaultParaStyleName = (string)sXDoc
+                    .Root
+                    .Elements(W.style)
+                    .Where(st => (string)st.Attribute(W.type) == "paragraph" && st.Attribute(W._default).ToBoolean() == true)
+                    .Attributes(W.styleId)
                     .FirstOrDefault();
-                if (globalDefaultParaPropsAsDefined == null)
-                    globalDefaultParaPropsAsDefined = new XElement(W.pPr,
-                        new XElement(W.rPr));
-                globalDefaultRunPropsAsDefined = docDefaults.Elements(W.rPrDefault).Elements(W.rPr)
+                defaultCharStyleName = (string)sXDoc
+                    .Root
+                    .Elements(W.style)
+                    .Where(st => (string)st.Attribute(W.type) == "character" && st.Attribute(W._default).ToBoolean() == true)
+                    .Attributes(W.styleId)
                     .FirstOrDefault();
-                if (globalDefaultRunPropsAsDefined == null)
-                    globalDefaultRunPropsAsDefined = new XElement(W.rPr);
-                if (globalDefaultRunPropsAsDefined.Element(W.rFonts) == null)
-                    globalDefaultRunPropsAsDefined.Add(
-                        new XElement(W.rFonts,
-                            new XAttribute(W.ascii, "Times New Roman"),
-                            new XAttribute(W.hAnsi, "Times New Roman"),
-                            new XAttribute(W.cs, "Times New Roman")));
-                if (globalDefaultRunPropsAsDefined.Element(W.sz) == null)
-                    globalDefaultRunPropsAsDefined.Add(
-                        new XElement(W.sz,
-                            new XAttribute(W.val, "20")));
-                if (globalDefaultRunPropsAsDefined.Element(W.szCs) == null)
-                    globalDefaultRunPropsAsDefined.Add(
-                        new XElement(W.szCs,
-                            new XAttribute(W.val, "20")));
+                XElement docDefaults = sXDoc.Root.Element(W.docDefaults);
+                if (docDefaults != null)
+                {
+                    globalDefaultParaPropsAsDefined = docDefaults.Elements(W.pPrDefault).Elements(W.pPr)
+                        .FirstOrDefault();
+                    if (globalDefaultParaPropsAsDefined == null)
+                        globalDefaultParaPropsAsDefined = new XElement(W.pPr,
+                            new XElement(W.rPr));
+                    globalDefaultRunPropsAsDefined = docDefaults.Elements(W.rPrDefault).Elements(W.rPr)
+                        .FirstOrDefault();
+                    if (globalDefaultRunPropsAsDefined == null)
+                        globalDefaultRunPropsAsDefined = new XElement(W.rPr);
+                    if (globalDefaultRunPropsAsDefined.Element(W.rFonts) == null)
+                        globalDefaultRunPropsAsDefined.Add(
+                            new XElement(W.rFonts,
+                                new XAttribute(W.ascii, "Times New Roman"),
+                                new XAttribute(W.hAnsi, "Times New Roman"),
+                                new XAttribute(W.cs, "Times New Roman")));
+                    if (globalDefaultRunPropsAsDefined.Element(W.sz) == null)
+                        globalDefaultRunPropsAsDefined.Add(
+                            new XElement(W.sz,
+                                new XAttribute(W.val, "20")));
+                    if (globalDefaultRunPropsAsDefined.Element(W.szCs) == null)
+                        globalDefaultRunPropsAsDefined.Add(
+                            new XElement(W.szCs,
+                                new XAttribute(W.val, "20")));
 
-                var runPropsForGlobalDefaultParaProps = MergeStyleElement(globalDefaultRunPropsAsDefined, globalDefaultParaPropsAsDefined.Element(W.rPr));
-                globalDefaultParaProps = new XElement(globalDefaultParaPropsAsDefined.Name,
-                    globalDefaultParaPropsAsDefined.Attributes(),
-                    globalDefaultParaPropsAsDefined.Elements().Where(e => e.Name != W.rPr),
-                    runPropsForGlobalDefaultParaProps);
-                globalDefaultRunProps = MergeStyleElement(globalDefaultParaPropsAsDefined.Element(W.rPr), globalDefaultRunPropsAsDefined);
+                    var runPropsForGlobalDefaultParaProps = MergeStyleElement(globalDefaultRunPropsAsDefined, globalDefaultParaPropsAsDefined.Element(W.rPr));
+                    globalDefaultParaProps = new XElement(globalDefaultParaPropsAsDefined.Name,
+                        globalDefaultParaPropsAsDefined.Attributes(),
+                        globalDefaultParaPropsAsDefined.Elements().Where(e => e.Name != W.rPr),
+                        runPropsForGlobalDefaultParaProps);
+                    globalDefaultRunProps = MergeStyleElement(globalDefaultParaPropsAsDefined.Element(W.rPr), globalDefaultRunPropsAsDefined);
+                }
             }
+
             var rPr = new XElement(W.rPr,
                         new XElement(W.rFonts,
                                 new XAttribute(W.ascii, "Times New Roman"),
@@ -988,7 +998,7 @@ namespace OpenXmlPowerTools
 
         private static void AnnotateTablesWithTableStyles(WordprocessingDocument wDoc, XElement rootElement)
         {
-            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            //XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();  // Not used
             foreach (var tbl in rootElement.Descendants(W.tbl))
             {
                 string tblStyleName = (string)tbl.Elements(W.tblPr).Elements(W.tblStyle).Attributes(W.val).FirstOrDefault();
@@ -1720,7 +1730,7 @@ namespace OpenXmlPowerTools
                     color1 = Convert.ToInt32(color1str, 16);
                 }
                 // if the above throws ArgumentException, FormatException, or OverflowException, then abort
-                catch (Exception) 
+                catch (Exception)
                 {
                     return sideToReplace;
                 }
@@ -2049,7 +2059,7 @@ namespace OpenXmlPowerTools
 
         private static IEnumerable<XElement> TableStyleStack(WordprocessingDocument wDoc, string tblStyleName)
         {
-            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            XDocument sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart?.GetXDocument();
             string currentStyle = tblStyleName;
             while (true)
             {
@@ -2461,7 +2471,7 @@ namespace OpenXmlPowerTools
 
         private static XElement CharStyleRollup(FormattingAssemblerInfo fai, WordprocessingDocument wDoc, XElement runOrPara)
         {
-            var sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            var sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart?.GetXDocument();
 
             string charStyle = null;
             string paraStyle = null;
@@ -2623,7 +2633,7 @@ namespace OpenXmlPowerTools
         private static IEnumerable<XElement> ParaStyleRunPropsStack(WordprocessingDocument wDoc, string paraStyleName)
         {
             var localParaStyleName = paraStyleName;
-            var sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            var sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart?.GetXDocument();
             var rValue = new Stack<XElement>();
             while (localParaStyleName != null)
             {
@@ -2652,7 +2662,7 @@ namespace OpenXmlPowerTools
         private static IEnumerable<XElement> CharStyleStack(WordprocessingDocument wDoc, string charStyleName)
         {
             var localCharStyleName = charStyleName;
-            var sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart.GetXDocument();
+            var sXDoc = wDoc.MainDocumentPart.StyleDefinitionsPart?.GetXDocument();
             var rValue = new Stack<XElement>();
             while (localCharStyleName != null)
             {
@@ -3158,7 +3168,7 @@ namespace OpenXmlPowerTools
                 .toArray();
             */
 
-            var charToExamine = str.FirstOrDefault(c => ! WeakAndNeutralDirectionalCharacters.Contains(c));
+            var charToExamine = str.FirstOrDefault(c => !WeakAndNeutralDirectionalCharacters.Contains(c));
             if (charToExamine == '\0')
                 charToExamine = str[0];
 

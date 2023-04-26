@@ -2086,8 +2086,8 @@ namespace OpenXmlPowerTools
             // for all content parts, not just the main document part.
 
             // w:defaultTabStop in settings
-            var sxd = wordDoc.MainDocumentPart.DocumentSettingsPart.GetXDocument();
-            var defaultTabStopValue = (string)sxd.Descendants(W.defaultTabStop).Attributes(W.val).FirstOrDefault();
+            var sxd = wordDoc.MainDocumentPart.DocumentSettingsPart?.GetXDocument();
+            var defaultTabStopValue = (string)sxd?.Descendants(W.defaultTabStop).Attributes(W.val).FirstOrDefault();
             var defaultTabStop = defaultTabStopValue != null ? WordprocessingMLUtil.StringToTwips(defaultTabStopValue) : 720;
 
             var pxd = wordDoc.MainDocumentPart.GetXDocument();
