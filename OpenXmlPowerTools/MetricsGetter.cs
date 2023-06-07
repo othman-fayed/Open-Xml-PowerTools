@@ -116,7 +116,7 @@ namespace OpenXmlPowerTools
                 {
                     var proposedSize = new Size(int.MaxValue, int.MaxValue);
                     var sf = Graphics.Value.MeasureString(text, f, proposedSize);
-                    return (int) sf.Width;
+                    return (int)sf.Width;
                 }
             }
             catch
@@ -242,7 +242,7 @@ namespace OpenXmlPowerTools
                             .Distinct()
                             .ToList();
                         foreach (var item in namespaces)
-		                    uniqueNamespaces.Add(item);
+                            uniqueNamespaces.Add(item);
                     }
                     // if catch exception, forget about it.  Just trying to get a most complete survey possible of all namespaces in all documents.
                     // if caught exception, chances are the document is bad anyway.
@@ -902,30 +902,30 @@ namespace OpenXmlPowerTools
                     var isGroup = element.Elements(W.sdtPr).Elements(W.group).Any();
                     var isPicture = element.Elements(W.sdtPr).Elements(W.picture).Any();
                     var isRichText = element.Elements(W.sdtPr).Elements(W.richText).Any() ||
-                        (! isText && 
-                        ! isBibliography && 
-                        ! isCitation && 
-                        ! isComboBox && 
-                        ! isDate && 
-                        ! isDocPartList && 
-                        ! isDocPartObj && 
-                        ! isDropDownList && 
-                        ! isEquation && 
-                        ! isGroup && 
-                        ! isPicture);
+                        (!isText &&
+                        !isBibliography &&
+                        !isCitation &&
+                        !isComboBox &&
+                        !isDate &&
+                        !isDocPartList &&
+                        !isDocPartObj &&
+                        !isDropDownList &&
+                        !isEquation &&
+                        !isGroup &&
+                        !isPicture);
                     string type = null;
-                    if (isText        ) type = "Text";
+                    if (isText) type = "Text";
                     if (isBibliography) type = "Bibliography";
-                    if (isCitation    ) type = "Citation";
-                    if (isComboBox    ) type = "ComboBox";
-                    if (isDate        ) type = "Date";
-                    if (isDocPartList ) type = "DocPartList";
-                    if (isDocPartObj  ) type = "DocPartObj";
+                    if (isCitation) type = "Citation";
+                    if (isComboBox) type = "ComboBox";
+                    if (isDate) type = "Date";
+                    if (isDocPartList) type = "DocPartList";
+                    if (isDocPartObj) type = "DocPartObj";
                     if (isDropDownList) type = "DropDownList";
-                    if (isEquation    ) type = "Equation";
-                    if (isGroup       ) type = "Group";
-                    if (isPicture     ) type = "Picture";
-                    if (isRichText    ) type = "RichText";
+                    if (isEquation) type = "Equation";
+                    if (isGroup) type = "Group";
+                    if (isPicture) type = "Picture";
+                    if (isRichText) type = "RichText";
                     var typeAttr = new XAttribute(H.Type, type);
 
                     return new XElement(H.ContentControl,
