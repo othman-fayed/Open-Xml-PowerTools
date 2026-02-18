@@ -5,18 +5,21 @@
 // TODO wDocConsolidated.MainDocumentPart.FootnotesPart.PutXDocument();
 // TODO Take care of this after the conference
 
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Spreadsheet;
+using OpenXmlPowerTools;
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.IO.Packaging;
+using System.Linq;
+using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
-using DocumentFormat.OpenXml.Packaging;
-using System.Drawing;
-using System.Security.Cryptography;
-using OpenXmlPowerTools;
 
 // It is possible to optimize DescendantContentAtoms
 
@@ -79,7 +82,7 @@ namespace OpenXmlPowerTools
     {
         public WmlDocument RevisedDocument;
         public string Revisor;
-        public Color Color;
+        public DocumentFormat.OpenXml.Spreadsheet.Color Color;
     }
 
     public static class WmlComparer
@@ -503,7 +506,7 @@ namespace OpenXmlPowerTools
         private class ConsolidationInfo
         {
             public string Revisor;
-            public Color Color;
+            public DocumentFormat.OpenXml.Spreadsheet.Color Color;
             public XElement RevisionElement;
             public bool InsertBefore = false;
             public string RevisionHash;
@@ -628,8 +631,7 @@ namespace OpenXmlPowerTools
                             delta.SaveAs(deltaFi.FullName);
                         }
 
-                        var colorRgb = revisedDocumentInfo.Color.ToArgb();
-                        var colorString = colorRgb.ToString("X");
+                        var colorString = revisedDocumentInfo.Color.Rgb.Value;
                         if (colorString.Length == 8)
                             colorString = colorString.Substring(2);
 
@@ -1139,8 +1141,7 @@ namespace OpenXmlPowerTools
                         new XElement(W.bCs)),
                     new XElement(W.t, revisor)));
 
-            var colorRgb = groupedCi.First().Color.ToArgb();
-            var colorString = colorRgb.ToString("X");
+            var colorString = groupedCi.First().Color.Rgb.Value;
             if (colorString.Length == 8)
                 colorString = colorString.Substring(2);
 
@@ -1338,12 +1339,12 @@ namespace OpenXmlPowerTools
             ConsolidationInfo consolidationInfo,
             WmlComparerSettings settings)
         {
-            Package packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage.Package;
-            Package packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage.Package;
+            var packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage;
+            var packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage;
             //var packageOfDeletedContent = wDocDelta.MainDocumentPart.OpenXmlPackage.GetAllParts;
             //var packageOfNewContent = consolidatedWDoc.MainDocumentPart.OpenXmlPackage;
-            PackagePart partInDeletedDocument = packageOfDeletedContent.GetPart(wDocDelta.MainDocumentPart.Uri);
-            PackagePart partInNewDocument = packageOfNewContent.GetPart(consolidatedWDoc.MainDocumentPart.Uri);
+            var partInDeletedDocument = packageOfDeletedContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(wDocDelta.MainDocumentPart.Uri));
+            var partInNewDocument = packageOfNewContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(consolidatedWDoc.MainDocumentPart.Uri));
             consolidationInfo.RevisionElement = MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, consolidationInfo.RevisionElement);
 
             var clonedForHashing = (XElement)CloneBlockLevelContentForHashing(consolidatedWDoc.MainDocumentPart, consolidationInfo.RevisionElement, false, settings);
@@ -4607,10 +4608,10 @@ namespace OpenXmlPowerTools
                                         var openXmlPartInNewDocument = part;
                                         return gc.Select(gce =>
                                         {
-                                            Package packageOfDeletedContent = openXmlPartOfDeletedContent.OpenXmlPackage.Package;
-                                            Package packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage.Package;
-                                            PackagePart partInDeletedDocument = packageOfDeletedContent.GetPart(part.Uri);
-                                            PackagePart partInNewDocument = packageOfNewContent.GetPart(part.Uri);
+                                            var packageOfDeletedContent = openXmlPartOfDeletedContent.OpenXmlPackage;
+                                            var packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage;
+                                            var partInDeletedDocument = packageOfDeletedContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(part.Uri));
+                                            var partInNewDocument = packageOfNewContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(part.Uri));
                                             return MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, newDrawing);
                                         });
                                     });
@@ -4626,10 +4627,10 @@ namespace OpenXmlPowerTools
                                         var openXmlPartInNewDocument = part;
                                         return gc.Select(gce =>
                                         {
-                                            Package packageOfSourceContent = openXmlPartOfInsertedContent.OpenXmlPackage.Package;
-                                            Package packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage.Package;
-                                            PackagePart partInDeletedDocument = packageOfSourceContent.GetPart(part.Uri);
-                                            PackagePart partInNewDocument = packageOfNewContent.GetPart(part.Uri);
+                                            var packageOfSourceContent = openXmlPartOfInsertedContent.OpenXmlPackage;
+                                            var packageOfNewContent = openXmlPartInNewDocument.OpenXmlPackage;
+                                            var partInDeletedDocument = packageOfSourceContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(part.Uri));
+                                            var partInNewDocument = packageOfNewContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(part.Uri));
                                             return MoveRelatedPartsToDestination(partInDeletedDocument, partInNewDocument, newDrawing);
                                         });
                                     });
@@ -4742,7 +4743,7 @@ namespace OpenXmlPowerTools
             return elementList;
         }
 
-        private static XElement MoveRelatedPartsToDestination(PackagePart partOfDeletedContent, PackagePart partInNewDocument,
+        private static XElement MoveRelatedPartsToDestination(OpenXmlPart partOfDeletedContent, OpenXmlPart partInNewDocument,
             XElement contentElement)
         {
             var elementsToUpdate = contentElement
@@ -4760,11 +4761,11 @@ namespace OpenXmlPowerTools
                 {
                     var rId = (string)att;
 
-                    var relationshipForDeletedPart = partOfDeletedContent.GetRelationship(rId);
+                    var relationshipForDeletedPart = partOfDeletedContent.GetReferenceRelationship(rId);
                     if (relationshipForDeletedPart == null)
                         throw new FileFormatException("Invalid document");
 
-                    var tartString = relationshipForDeletedPart.TargetUri.ToString();
+                    var tartString = relationshipForDeletedPart.Uri.ToString();
 
                     Uri targetUri;
                     try
@@ -4782,7 +4783,7 @@ namespace OpenXmlPowerTools
                     if (targetUri != null)
                     {
 
-                        var relatedPackagePart = partOfDeletedContent.Package.GetPart(targetUri);
+                        var relatedPackagePart = partOfDeletedContent.GetAllParts().FirstOrDefault(p => p.Uri.Equals(targetUri));
                         var uriSplit = relatedPackagePart.Uri.ToString().Split('/');
                         var last = uriSplit[uriSplit.Length - 1].Split('.');
                         string uriString = null;
@@ -4802,13 +4803,26 @@ namespace OpenXmlPowerTools
                         else
                             uri = new Uri(uriString, UriKind.Relative);
 
-                        var newPart = partInNewDocument.Package.CreatePart(uri, relatedPackagePart.ContentType);
+
+                        // 1. Get the Type of your variable
+                        Type typeOfPart = relatedPackagePart.GetType();
+
+                        // 2. Get the MethodInfo for your generic method
+                        // (Assumes the method is in the current class)
+                        MethodInfo method = typeof(OpenXmlPart).GetMethod("AddNewPart");
+
+                        // 3. Turn the "Generic Definition" into a "Specific Method"
+                        MethodInfo genericMethod = method.MakeGenericMethod(typeOfPart);
+
+                        // 4. Invoke it (pass 'this' if it's an instance method, or 'null' if static)
+                        var newPart = genericMethod.Invoke(partInNewDocument, null) as OpenXmlPart;
+
                         using (var oldPartStream = relatedPackagePart.GetStream())
                         using (var newPartStream = newPart.GetStream())
                             FileUtils.CopyStream(oldPartStream, newPartStream);
 
                         var newRid = "R" + Guid.NewGuid().ToString().Replace("-", "");
-                        partInNewDocument.CreateRelationship(newPart.Uri, TargetMode.Internal, relationshipForDeletedPart.RelationshipType, newRid);
+                        partInNewDocument.AddHyperlinkRelationship(newPart.Uri, false, newRid);
                         att.Value = newRid;
 
                         if (newPart.ContentType.EndsWith("xml"))
